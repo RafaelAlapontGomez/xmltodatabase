@@ -12,7 +12,9 @@ import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourc
 import org.springframework.batch.item.database.ItemSqlParameterSourceProvider;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -28,7 +30,7 @@ import java.util.Map;
 public class PurchaseOrderWriter implements ItemStreamWriter<PurchaseOrder>, ItemWriter<PurchaseOrder> {
 
     private static final String QUERY_INSERT_PURCHASED = "INSERT " +
-            "INTO public.\"PurchaseOrder\"(purchaseOrderNumber, orderDate, deliveryNotes) " +
+            "INTO public.\"PurchaseOrder\"(\"purchaseOrderNumber\", \"orderDate\", \"deliveryNotes\") " +
             "VALUES (:purchaseOrderNumber, :orderDate, :deliveryNotes)";
 
     private static final String QUERY_INSERT_ADDRESS = "INSERT " +
@@ -63,17 +65,18 @@ public class PurchaseOrderWriter implements ItemStreamWriter<PurchaseOrder>, Ite
     }
 
     @Override
-    public void write(List<? extends PurchaseOrder> pruchaseOrders) throws Exception {
+    public void write(List<? extends PurchaseOrder> purchaseOrders) throws Exception {
 
         log.info(QUERY_INSERT_PURCHASED);
         log.info(QUERY_INSERT_ADDRESS);
         log.info(QUERY_INSERT_ITEM);
 
-        for (PurchaseOrder purchaseOrder: pruchaseOrders) {
-            log.info( pruchaseOrders.toString() );
-            Map<String, Object> paramMap = purchaseOrderParamMap(purchaseOrder);
+        for (PurchaseOrder purchaseOrder: purchaseOrders) {
+            log.info( purchaseOrders.toString() );
 
-            postgresJdbcTemplate.update(QUERY_INSERT_PURCHASED, paramMap);
+            SqlParameterSource namedParameters = new BeanPropertySqlParameterSource(purchaseOrder);
+
+            postgresJdbcTemplate.update(QUERY_INSERT_PURCHASED, namedParameters);
 
             insertAddress(purchaseOrder.getAddresses());
             insertItem(purchaseOrder.getItems().getItems());
@@ -86,24 +89,10 @@ public class PurchaseOrderWriter implements ItemStreamWriter<PurchaseOrder>, Ite
 
         for(Item item: items) {
             log.info(item.toString());
+            SqlParameterSource namedParameters = new BeanPropertySqlParameterSource(item);
 
-            Map<String, Object> paramMap = itemParamMap(item);
-            postgresJdbcTemplate.update(QUERY_INSERT_ITEM, paramMap);
+            postgresJdbcTemplate.update(QUERY_INSERT_ITEM, namedParameters);
         }
-    }
-
-    private Map<String, Object> itemParamMap(Item item) {
-        Map<String, Object> paramMap = new HashMap<>();
-
-        paramMap.put("purchaseOrderNumber", item.getPurchaseOrderNumber());
-        paramMap.put("partNumber", item.getPartNumber());
-        paramMap.put("productName", item.getProductName());
-        paramMap.put("quantity", item.getQuantity());
-        paramMap.put("uSPrice", item.getUSPrice());
-        paramMap.put("shipDate", item.getShipDate());
-        paramMap.put("comment", item.getComment());
-
-        return paramMap;
     }
 
     private void insertAddress(List<Address> addresses) {
@@ -111,30 +100,9 @@ public class PurchaseOrderWriter implements ItemStreamWriter<PurchaseOrder>, Ite
         for (Address address: addresses) {
             log.info(address.toString());
 
-            Map<String, Object> paramMap = addressParamMap(address);
-            postgresJdbcTemplate.update(QUERY_INSERT_ADDRESS, paramMap);
+            SqlParameterSource namedParameters = new BeanPropertySqlParameterSource(address);
+
+            postgresJdbcTemplate.update(QUERY_INSERT_ADDRESS, namedParameters);
         }
-    }
-
-    private Map<String, Object> addressParamMap(Address address) {
-        Map<String, Object> paramMap = new HashMap<>();
-        paramMap.put("purchaseOrderNumber", address.getPurchaseOrderNumber());
-        paramMap.put("name", address.getName());
-        paramMap.put("city", address.getCity());
-        paramMap.put("state", address.getState());
-        paramMap.put("zip", address.getZip());
-        paramMap.put("country", address.getCountry());
-        paramMap.put("street", address.getStreet());
-
-        return paramMap;
-    }
-
-    private Map<String, Object> purchaseOrderParamMap(PurchaseOrder purchaseOrder) {
-        Map<String, Object> paramMap = new HashMap<>();
-        paramMap.put("purchaseOrderNumber", purchaseOrder.getPurchaseOrderNumber());
-        paramMap.put("orderDate", purchaseOrder.getOrderDate());
-        paramMap.put("deliveryNotes", purchaseOrder.getDeliveryNotes());
-
-        return paramMap;
     }
 }
